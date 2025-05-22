@@ -39,7 +39,10 @@
     "uplays": true,
     "exchange_cost": 100,
     "whitelist_cost": 9999,
-    "invite_cost": 1000
+    "invite_cost": 1000,
+    "invitation_system_enabled": false,
+    "invitation_inviter_points": 100,
+    "invitation_invited_user_points": 50
   },
   "tz_ad": "",
   "tz_api": "",
@@ -77,6 +80,12 @@
     "password": null,
     "access_token": null,
     "price": 1
+  },
+  "navidrome": {
+    "navidrome_url": "http://localhost:4533",
+    "navidrome_username": "",
+    "navidrome_password": "",
+    "navidrome_app_name": "SakuraEmbyBossBot"
   },
   "auto_update": {
     "status": true,

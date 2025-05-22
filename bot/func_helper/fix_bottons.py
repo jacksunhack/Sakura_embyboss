@@ -131,10 +131,38 @@ async def cr_page_server():
 
 """admins ↓"""
 
-gm_ikb_content = ikb([[('⭕ 注册状态', 'open-menu'), ('🎟️ 注册/续期码', 'cr_link')],
-                      [('💊 查询注册', 'ch_link'), ('🏬 兑换设置', 'set_renew')],
-                      [('👥 用户列表', 'normaluser'), ('👑 白名单列表', 'whitelist'), ('💠 设备列表', 'user_devices')],
-                      [('🌏 定时', 'schedall'), ('🕹️ 主界面', 'back_start'), ('其他 🪟', 'back_config')]])
+# Main Admin Panel Keyboard
+gm_ikb_content = ikb([
+    [('⭕ 注册状态', 'open-menu'), ('🎟️ 注册/续期码', 'cr_link')],
+    [('💊 查询注册', 'ch_link'), ('🏬 兑换设置', 'set_renew')],
+    [('👥 用户列表', 'normaluser'), ('👑 白名单列表', 'whitelist'), ('💠 设备列表', 'user_devices')],
+    [('✉️ 邀请设置', 'invite_settings_menu')],  # New button for Invitation Settings
+    [('🌏 定时', 'schedall'), ('🕹️ 主界面', 'back_start'), ('其他 🪟', 'back_config')] 
+    # Consider adding '💣 Close' if it's standard, like in admin_panel.py's local version
+    # For now, matching the structure from admin_panel.py's dynamic creation (minus Close for now)
+])
+
+# Back button to main admin panel (manage)
+# back_manage_ikb is already defined and suitable: ikb([[('💨 返回', 'manage')]])
+# So, no need to redefine back_button_gm_ikb if it's the same as back_manage_ikb.
+
+def invitation_settings_ikb(is_enabled: bool, inviter_points: int, invited_user_points: int) -> InlineKeyboardMarkup:
+    """
+    Generates the inline keyboard for the invitation settings menu.
+    :param is_enabled: Current status of the invitation system.
+    :param inviter_points: Current points for the inviter.
+    :param invited_user_points: Current points for the invited user.
+    :return: InlineKeyboardMarkup
+    """
+    toggle_text = "❎ 关闭邀请系统" if is_enabled else "✅ 开启邀请系统"
+    
+    keyboard_layout = [
+        [InlineButton(toggle_text, callback_data="toggle_invitation_system")],
+        [InlineButton(f"🎁 邀请者积分: {inviter_points}", callback_data="set_inviter_points")],
+        [InlineButton(f"🎉 被邀请者积分: {invited_user_points}", callback_data="set_invited_user_points")],
+        [InlineButton('💨 返回', 'manage')] # Using the same pattern as back_manage_ikb
+    ]
+    return InlineKeyboardMarkup(keyboard_layout)
 
 
 def open_menu_ikb(openstats, timingstats) -> InlineKeyboardMarkup:
@@ -320,10 +348,15 @@ def cr_renew_ikb():
                  )
     keyboard.row(InlineButton(f'◀ 返回', 'manage'))
     return keyboard
-def invite_lv_ikb():
+def invite_lv_ikb(current_level: str = 'a'): # Added current_level for potential highlighting
+    # Example of how current_level could be used for dynamic text, though not strictly required by current admin_panel change
+    # levels = {'a': '白名单', 'b': '普通用户', 'c': '已禁用用户', 'd': '无账号用户'}
+    # button_a_text = f"🅰️ 白名单 {'✔️' if current_level == 'a' else ''}" 
+    # etc.
+    
     keyboard = ikb([
         [('🅰️ 白名单', 'set_invite_lv-a'), ('🅱️ 普通用户', 'set_invite_lv-b')],
-        [('©️ 已禁用用户', 'set_invite_lv-c'), ('🅳️ 无账号用户', 'set_invite_lv-d')],
+        [('🇨 已禁用用户', 'set_invite_lv-c'), ('🇩 无账号用户', 'set_invite_lv-d')], # Corrected C and D symbols
         [('🔙 返回', 'set_renew')]
     ])
     return keyboard
