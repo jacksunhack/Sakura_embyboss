@@ -78,6 +78,12 @@
     "access_token": null,
     "price": 1
   },
+  "navidrome": {
+    "navidrome_url": "http://localhost:4533",
+    "navidrome_username": "",
+    "navidrome_password": "",
+    "navidrome_app_name": "SakuraEmbyBossBot"
+  },
   "auto_update": {
     "status": true,
     "git_repo": "berry8838/Sakura_embyboss",
