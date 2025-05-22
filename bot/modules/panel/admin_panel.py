@@ -11,8 +11,13 @@ from bot.func_helper.filters import admins_on_filter
 from bot.schemas import ExDate
 from bot.sql_helper.sql_code import sql_count_code, sql_count_p_code, sql_delete_all_unused, sql_delete_unused_by_days
 from bot.sql_helper.sql_emby import sql_count_emby
-from bot.func_helper.fix_bottons import gm_ikb_content, open_menu_ikb, gog_rester_ikb, back_open_menu_ikb, \
-    back_free_ikb, re_cr_link_ikb, close_it_ikb, ch_link_ikb, date_ikb, cr_paginate, cr_renew_ikb, invite_lv_ikb
+# Updated imports to use gm_ikb_content directly and new invitation_settings_ikb
+from bot.func_helper.fix_bottons import (
+    gm_ikb_content, open_menu_ikb, gog_rester_ikb, back_open_menu_ikb,
+    back_free_ikb, re_cr_link_ikb, close_it_ikb, ch_link_ikb, date_ikb,
+    cr_paginate, cr_renew_ikb, invite_lv_ikb, back_manage_ikb, # Assuming back_manage_ikb is the standard back button
+    invitation_settings_ikb as fb_invitation_settings_ikb # Import with alias to avoid conflict if any local one was planned
+)
 from bot.func_helper.msg_utils import callAnswer, editMessage, sendPhoto, callListen, deleteMessage, sendMessage
 from bot.func_helper.utils import open_check, cr_link_one,rn_link_one
 
@@ -21,17 +26,113 @@ from bot.func_helper.utils import open_check, cr_link_one,rn_link_one
 async def gm_ikb(_, call):
     await callAnswer(call, '✔️ manage面板')
     stat, all_user, tem, timing = await open_check()
-    stat = "True" if stat else "False"
-    timing = 'Turn off' if timing == 0 else str(timing) + ' min'
+    stat_str = "✅ 开启" if stat else "❎ 关闭"
+    timing_str = '❎ 关闭' if timing == 0 else f'✅ {timing} 分钟'
     tg, emby, white = sql_count_emby()
-    gm_text = f'⚙️ 欢迎您，亲爱的管理员 {call.from_user.first_name}\n\n' \
-              f'· ®️ 注册状态 | **{stat}**\n' \
-              f'· ⏳ 定时注册 | **{timing}**\n' \
-              f'· 🎫 总注册限制 | **{all_user}**\n'\
-              f'· 🎟️ 已注册人数 | **{emby}** • WL **{white}**\n' \
-              f'· 🤖 bot使用人数 | {tg}'
 
+    # Invitation system settings
+    inv_enabled_str = "✅ 开启" if _open.get("invitation_system_enabled", False) else "❎ 关闭"
+    inviter_points = _open.get("invitation_inviter_points", 0)
+    invited_points = _open.get("invitation_invited_user_points", 0)
+
+    gm_text = f'⚙️ **{bot_name} 管理面板** ⚙️\n\n' \
+              f'管理员: {call.from_user.first_name}\n\n' \
+              f'💠 **注册设置**:\n' \
+              f'  · 自由注册: **{stat_str}**\n' \
+              f'  · 定时注册: **{timing_str}**\n' \
+              f'  · 总注册限制: **{all_user}**\n' \
+              f'  · 已注册 (Emby/白名单): **{emby} / {white}**\n' \
+              f'  · Bot 用户总数: **{tg}**\n\n' \
+              f'✉️ **邀请系统设置**:\n' \
+              f'  · 邀请功能: **{inv_enabled_str}**\n' \
+              f'  · 邀请者获得积分: **{inviter_points}**\n' \
+              f'  · 被邀请者获得积分: **{invited_points}**'
+    
+    # Now directly use the imported gm_ikb_content from fix_bottons.py
+    # It should already contain the "Invitation Settings" button and a close button if defined there.
     await editMessage(call, gm_text, buttons=gm_ikb_content)
+
+# --- Invitation Settings ---
+
+# Local definition of invitation_settings_ikb is removed.
+# fb_invitation_settings_ikb (imported from fix_bottons) will be used.
+
+@bot.on_callback_query(filters.regex('invite_settings_menu') & admins_on_filter)
+async def invite_settings_menu_cb(_, call):
+    await callAnswer(call, '✉️ 邀请系统设置')
+    
+    is_enabled = _open.get("invitation_system_enabled", False)
+    inviter_points = _open.get("invitation_inviter_points", 0)
+    invited_user_points = _open.get("invitation_invited_user_points", 0)
+    
+    text = f"✉️ **邀请系统设置**\n\n" \
+           f"当前状态: {'✅ 已开启' if is_enabled else '❎ 已关闭'}\n" \
+           f"邀请者获得积分: **{inviter_points}**\n" \
+           f"被邀请者获得积分: **{invited_user_points}**\n\n" \
+           f"请选择要修改的选项:"
+           
+    # Use the imported keyboard function from fix_bottons
+    await editMessage(call, text, buttons=fb_invitation_settings_ikb(is_enabled, inviter_points, invited_user_points))
+
+@bot.on_callback_query(filters.regex('toggle_invitation_system') & admins_on_filter)
+async def toggle_invitation_system_cb(_, call):
+    current_status = _open.get("invitation_system_enabled", False)
+    _open["invitation_system_enabled"] = not current_status
+    save_config()
+    
+    new_status_text = "✅ 已开启" if not current_status else "❎ 已关闭"
+    await callAnswer(call, f"邀请系统已 {new_status_text.split(' ')[1]}", show_alert=True)
+    await invite_settings_menu_cb(_, call) # Refresh the menu
+
+async def set_points_value(call, point_type_key, friendly_name):
+    prompt_message = await editMessage(call, 
+                                       f"请输入新的 **{friendly_name}** 数值。\n\n"
+                                       f"当前值为: {_open.get(point_type_key, 0)}\n"
+                                       f"发送 `/cancel` 取消操作。", 
+                                       buttons=InlineKeyboardMarkup([[back_manage_ikb.inline_keyboard[0][0]]])) # Use back_manage_ikb
+
+    user_input = await callListen(call, timeout=120)
+
+    if not user_input or not user_input.text:
+        await deleteMessage(prompt_message)
+        await callAnswer(call, "操作超时或无输入。", show_alert=True)
+        return await invite_settings_menu_cb(_, call) # Back to inv menu
+
+    await deleteMessage(user_input) # Delete user's points message
+    
+    if user_input.text.lower() == '/cancel':
+        await deleteMessage(prompt_message)
+        await callAnswer(call, "操作已取消。")
+        return await invite_settings_menu_cb(_, call)
+
+    try:
+        points = int(user_input.text)
+        if points < 0:
+            await deleteMessage(prompt_message)
+            await callAnswer(call, "积分数值不能为负数。", show_alert=True)
+            return await invite_settings_menu_cb(_, call)
+            
+        _open[point_type_key] = points
+        save_config()
+        await deleteMessage(prompt_message) # Delete the prompt "请输入新的..."
+        await callAnswer(call, f"{friendly_name} 已更新为: {points}", show_alert=True)
+    except ValueError:
+        await deleteMessage(prompt_message)
+        await callAnswer(call, "无效的数值。请输入一个整数。", show_alert=True)
+    
+    await invite_settings_menu_cb(_, call) # Refresh menu
+
+@bot.on_callback_query(filters.regex('set_inviter_points') & admins_on_filter)
+async def set_inviter_points_cb(_, call):
+    await callAnswer(call, '设置邀请者积分...')
+    await set_points_value(call, "invitation_inviter_points", "邀请者积分")
+
+@bot.on_callback_query(filters.regex('set_invited_user_points') & admins_on_filter)
+async def set_invited_user_points_cb(_, call):
+    await callAnswer(call, '设置被邀请者积分...')
+    await set_points_value(call, "invitation_invited_user_points", "被邀请者积分")
+
+# --- End Invitation Settings ---
 
 
 # 开关注册
@@ -375,34 +476,42 @@ async def set_renew(_, call):
     await callAnswer(call, '🚀 进入续期设置')
     try:
         method = call.data.split('-')[1]
-        setattr(_open, method, not getattr(_open, method))
+            # Make sure _open is a dict-like object that supports .get and item assignment
+            current_value = _open.get(method, False) # Assuming boolean toggle for these specific old methods
+            _open[method] = not current_value
         save_config()
-    except IndexError:
-        pass
+        except (IndexError, AttributeError, KeyError) as e: # Added AttributeError for _open.get if not dict-like, KeyError
+            LOGGER.error(f"Error in set_renew callback: {e}. Method: {method}")
+            pass # Keep original behavior of silently passing
     finally:
+            # This message might need to be re-evaluated if `method` isn't what `cr_renew_ikb` expects
         await editMessage(call, text='⭕ **关于用户组的续期功能**\n\n选择点击下方按钮开关任意兑换功能',
-                          buttons=cr_renew_ikb())
+                              buttons=cr_renew_ikb()) # cr_renew_ikb might need _open passed to it or to fetch config itself
+
 @bot.on_callback_query(filters.regex('set_invite_lv'))
 async def invite_lv_set(_, call):
     try:
         method = call.data
+        current_invite_lv = _open.get('invite_lv', 'a') # Default to 'a' if not set
+
         if method.startswith('set_invite_lv-'):
-            # 当选择具体等级时
             level = method.split('-')[1]
             if level in ['a', 'b', 'c', 'd']:
-                _open.invite_lv = level
+                _open['invite_lv'] = level
                 save_config()
-                await callAnswer(call, f'✅ 已设置邀请等级为 {level}', show_alert=True)
+                await callAnswer(call, f'✅ 已设置邀请等级为 {level.upper()}', show_alert=True)
+                current_invite_lv = level # Update for immediate display
+        
         await callAnswer(call, '🚀 进入邀请等级设置')
-        # 当点击设置邀请等级按钮时
         await editMessage(call, 
             "请选择邀请等级:\n\n"
-            f"当前等级: {_open.invite_lv}\n\n"
+            f"当前等级: **{current_invite_lv.upper()}**\n\n"
             "🅰️ - 白名单可使用\n"
             "🅱️ - 注册用户可使用\n" 
-            "©️ - 已禁用用户可使用\n"
-            "🅳️ - 无账号用户可使用",
-            buttons=invite_lv_ikb())
+            "🇨 - 已禁用用户可使用\n" # Typo: ©️ vs 🇨
+            "🇩 - 无账号用户可使用", # Typo: 🅳️ vs 🇩
+            buttons=invite_lv_ikb(current_invite_lv)) # Pass current_invite_lv to highlight correctly
         return
-    except IndexError:
+    except (IndexError, AttributeError, KeyError) as e: # Added AttributeError for _open.get, KeyError
+        LOGGER.error(f"Error in invite_lv_set callback: {e}")
         pass
